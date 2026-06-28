@@ -10,7 +10,7 @@ class Settings(BaseModel):
     report_dir: Path = Path(__file__).resolve().parents[2] / "reports"
     cors_origins: list[str] = [
         "http://localhost:3000",
-        "http://127.0.0.1:3000",
+        "https://quant-risk.vercel.app",
     ]
 
 

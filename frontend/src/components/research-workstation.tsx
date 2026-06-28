@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { runResearchScan } from "@/lib/api";
+import { runResearchScan, API_BASE } from "@/lib/api";
 import type { ResearchResponse } from "@/lib/types";
 import { cn, formatPct, formatProb } from "@/lib/utils";
 
@@ -115,7 +115,7 @@ export function ResearchWorkstation() {
                   <option value="agreement_score">Sort by Agreement</option>
                   <option value="confidence">Sort by Confidence</option>
                 </Select>
-                <Button type="button" variant="secondary" onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"}/api/research/scan`, "_blank")}>
+                <Button type="button" variant="secondary" onClick={() => window.open(`${API_BASE}/api/research/scan`, "_blank")}>
                   <Download className="h-4 w-4" />
                   Export API
                 </Button>
