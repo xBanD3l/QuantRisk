@@ -185,7 +185,7 @@ class ForecastPerformance(BaseModel):
 
 class PortfolioHolding(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=16)
-    weight: float = Field(..., ge=0.0, le=1.0)
+    weight: float = Field(..., gt=0.0, description="Relative portfolio weight; normalized to sum to 1.0 server-side.")
 
 
 class PortfolioRequest(BaseModel):

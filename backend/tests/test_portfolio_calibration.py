@@ -26,6 +26,20 @@ def test_analyze_portfolio_returns_risk_decomposition():
     assert result.diversification_benefit is not None
 
 
+def test_analyze_portfolio_accepts_percentage_style_weights():
+    request = PortfolioRequest(
+        holdings=[
+            PortfolioHolding(ticker="AAA", weight=60),
+            PortfolioHolding(ticker="BBB", weight=40),
+        ],
+        horizon_days=30,
+        confidence_level=0.95,
+    )
+    result = analyze_portfolio(request)
+    assert pytest.approx(result.holdings[0].weight, rel=1e-6) == 0.6
+    assert pytest.approx(result.holdings[1].weight, rel=1e-6) == 0.4
+
+
 def test_realized_horizon_return_from_synthetic_history():
     bars = _synthetic_history("CAL", 400)
     start = bars[100].date

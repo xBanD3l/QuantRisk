@@ -16,11 +16,10 @@ import {
   RefreshCcw,
   ShieldCheck,
   SlidersHorizontal,
-  TableProperties,
-  Plus,
-  Trash2
+  TableProperties
 } from "lucide-react";
 import { AnalysisCharts } from "@/components/analysis-charts";
+import { PortfolioHoldingsEditor, createPortfolioHoldingDraft, parseHoldingsForSubmit, type PortfolioHoldingDraft } from "@/components/portfolio-holdings-editor";
 import { PortfolioPanel } from "@/components/portfolio-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +39,6 @@ import type {
   ForecastPerformance,
   ModelName,
   ModelResult,
-  PortfolioHolding,
   PortfolioResponse
 } from "@/lib/types";
 import { cn, compactDate, formatPct, formatPrice, formatProb } from "@/lib/utils";
@@ -56,9 +54,9 @@ export function AnalysisWorkstation() {
   const supabase = useMemo(() => (isSupabaseConfigured() ? createClient() : null), []);
   const [mode, setMode] = useState<WorkstationMode>("single");
   const [ticker, setTicker] = useState("AAPL");
-  const [holdings, setHoldings] = useState<PortfolioHolding[]>([
-    { ticker: "AAPL", weight: 0.5 },
-    { ticker: "MSFT", weight: 0.5 }
+  const [holdings, setHoldings] = useState<PortfolioHoldingDraft[]>(() => [
+    createPortfolioHoldingDraft("AAPL", "50"),
+    createPortfolioHoldingDraft("MSFT", "50")
   ]);
   const [horizon, setHorizon] = useState(30);
   const [confidenceLevel, setConfidenceLevel] = useState(0.95);
@@ -96,19 +94,17 @@ export function AnalysisWorkstation() {
     setExplainPrompt(null);
 
     if (mode === "portfolio") {
-      const validHoldings = holdings.filter((holding) => holding.ticker.trim());
-      if (validHoldings.length < 1) {
-        setError("Add at least one portfolio holding.");
+      const parsed = parseHoldingsForSubmit(holdings);
+      if ("error" in parsed) {
+        setError(parsed.error);
         return;
       }
+      const validHoldings = parsed.holdings;
       setLoading(true);
       try {
         const result = await runPortfolioAnalysis(
           {
-            holdings: validHoldings.map((holding) => ({
-              ticker: holding.ticker.trim().toUpperCase(),
-              weight: holding.weight
-            })),
+            holdings: validHoldings,
             horizon_days: horizon,
             confidence_level: confidenceLevel
           },
@@ -194,19 +190,6 @@ export function AnalysisWorkstation() {
     );
   }
 
-  function updateHolding(index: number, field: keyof PortfolioHolding, value: string) {
-    setHoldings((current) =>
-      current.map((holding, holdingIndex) =>
-        holdingIndex === index
-          ? {
-              ...holding,
-              [field]: field === "weight" ? Number(value) : value
-            }
-          : holding
-      )
-    );
-  }
-
   return (
     <div className="mx-auto max-w-[1600px]">
       {!user ? (
@@ -257,48 +240,7 @@ export function AnalysisWorkstation() {
                 />
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold uppercase text-muted">Holdings</label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setHoldings((current) => [...current, { ticker: "", weight: 0.1 }])}
-                  >
-                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                    Add
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {holdings.map((holding, index) => (
-                    <div key={`${index}-${holding.ticker}`} className="grid grid-cols-[1fr_88px_32px] gap-2">
-                      <Input
-                        value={holding.ticker}
-                        onChange={(event) => updateHolding(index, "ticker", event.target.value)}
-                        placeholder="Ticker"
-                      />
-                      <Input
-                        type="number"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={holding.weight}
-                        onChange={(event) => updateHolding(index, "weight", event.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setHoldings((current) => current.filter((_, holdingIndex) => holdingIndex !== index))}
-                        disabled={holdings.length <= 1}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <PortfolioHoldingsEditor holdings={holdings} onChange={setHoldings} />
             )}
 
             <div className="space-y-2">
