@@ -1,15 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Loader2, Play, Search } from "lucide-react";
+import { Download, Loader2, Play, Search, TableProperties } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/components/auth-provider";
+import { EmptyStatePanel } from "@/components/empty-state-panel";
 import { SectionReveal } from "@/components/section-reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { runResearchScan, API_BASE, trackEvent } from "@/lib/api";
+import { formatUserError } from "@/lib/error-messages";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { trackUsage } from "@/lib/supabase/data";
 import type { ResearchResponse } from "@/lib/types";
@@ -54,7 +57,7 @@ export function ResearchWorkstation() {
         void trackEvent("research_scan", { watchlist }, accessToken);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Research scan failed.");
+      setError(formatUserError(err));
     } finally {
       setLoading(false);
     }
@@ -69,7 +72,7 @@ export function ResearchWorkstation() {
           <p className="mt-2 max-w-3xl text-sm leading-7 text-muted">
             Scan a watchlist with fast committee models, rank securities by return and risk, and identify disagreement and stability leaders.
           </p>
-          <div className="mt-5 grid gap-3 md:grid-cols-[180px_180px_1fr_auto]">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[180px_180px_1fr_auto]">
             <Select value={watchlist} onChange={(event) => setWatchlist(event.target.value)}>
               <option value="dow30">Dow 30</option>
               <option value="nasdaq100">Nasdaq 100</option>
@@ -90,7 +93,7 @@ export function ResearchWorkstation() {
                 Prebuilt institutional watchlist
               </div>
             )}
-            <Button type="button" onClick={handleScan} disabled={loading}>
+            <Button type="button" className="min-h-[44px] sm:col-span-2 xl:col-span-1" onClick={handleScan} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               Run Scan
             </Button>
@@ -98,6 +101,31 @@ export function ResearchWorkstation() {
           {error ? <p className="mt-3 text-sm text-rose">{error}</p> : null}
         </div>
       </SectionReveal>
+
+      {loading && !result ? (
+        <SectionReveal delay={0.05}>
+          <div className="rounded-2xl border border-line bg-panel p-6 shadow-workstation">
+            <Skeleton className="mb-4 h-10 w-48" />
+            <div className="space-y-3">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+            <p className="mt-4 text-sm text-muted">Scanning watchlist and ranking committee metrics…</p>
+          </div>
+        </SectionReveal>
+      ) : null}
+
+      {!loading && !result ? (
+        <SectionReveal delay={0.05}>
+          <EmptyStatePanel
+            icon={TableProperties}
+            title="Run a research scan"
+            description="Choose a watchlist and horizon, then run a batch scan to rank expected return, VaR, agreement, and confidence across securities."
+          />
+        </SectionReveal>
+      ) : null}
 
       {result ? (
         <>
@@ -131,7 +159,7 @@ export function ResearchWorkstation() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] border-collapse text-sm">
-                  <thead className="bg-surface text-xs uppercase text-muted">
+                  <thead className="bg-table-head text-xs uppercase text-muted">
                     <tr>
                       <th className="px-4 py-3 text-left">Ticker</th>
                       <th className="px-4 py-3 text-left">Expected Return</th>

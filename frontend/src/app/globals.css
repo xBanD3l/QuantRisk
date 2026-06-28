@@ -9,9 +9,12 @@
   --surface: #0b0e12;
   --panel: #111418;
   --panel2: #171b20;
+  --input-bg: #0d1014;
+  --table-head: #0d1014;
   --line: #2a3038;
   --muted: #8f98a6;
   --text: #f3f5f7;
+  --body-secondary: #d6dce3;
   --teal: #39d0b2;
 }
 
@@ -21,9 +24,12 @@
   --surface: #f7f8fa;
   --panel: #ffffff;
   --panel2: #f1f4f7;
+  --input-bg: #ffffff;
+  --table-head: #eef1f4;
   --line: #d5dbe3;
   --muted: #5f6b7a;
   --text: #111827;
+  --body-secondary: #374151;
   --teal: #0f766e;
 }
 
@@ -65,6 +71,14 @@ textarea {
   background-color: var(--panel2);
 }
 
+.bg-input {
+  background-color: var(--input-bg);
+}
+
+.bg-table-head {
+  background-color: var(--table-head);
+}
+
 .border-line {
   border-color: var(--line);
 }
@@ -77,8 +91,17 @@ textarea {
   color: var(--text);
 }
 
+.text-body-secondary {
+  color: var(--body-secondary);
+}
+
 .text-teal {
   color: var(--teal);
+}
+
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
 }
 
 ::-webkit-scrollbar {
@@ -106,6 +129,7 @@ textarea {
 .plot-container,
 .js-plotly-plot {
   width: 100%;
+  min-height: 280px;
 }
 
 @keyframes fade-up {
@@ -121,4 +145,10 @@ textarea {
 
 .animate-fade-up {
   animation: fade-up 0.45s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
 }

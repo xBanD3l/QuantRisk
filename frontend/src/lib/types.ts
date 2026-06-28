@@ -271,5 +271,6 @@ export type StreamHandlers = {
   onCommittee?: (statement: CommitteeStatement) => void;
   onComplete?: (analysis: AnalysisResponse) => void;
   onError?: (message: string) => void;
+  onFallback?: (message: string) => void;
 };
 

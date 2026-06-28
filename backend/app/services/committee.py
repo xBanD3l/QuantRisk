@@ -275,10 +275,124 @@ def _build_risks(results: list[ModelResult], weighted_var: float, weighted_es: f
 
 
 def answer_explainability_question(question: str, results: list[ModelResult]) -> tuple[str, list[str]]:
-    lower = question.lower()
+    lower = question.lower().strip()
     cited: list[str] = []
 
-    if "var" in lower or "risk" in lower:
+    off_topic_patterns = (
+        "super bowl",
+        "joke",
+        "essay",
+        "write me",
+        "who won",
+        "weather",
+        "recipe",
+        "poem",
+        "tell me a story",
+        "capital of",
+        "movie",
+        "celebrity",
+    )
+    analysis_terms = (
+        "var",
+        "risk",
+        "volatility",
+        "garch",
+        "monte",
+        "carlo",
+        "portfolio",
+        "confidence",
+        "return",
+        "shortfall",
+        "model",
+        "committee",
+        "forecast",
+        "analog",
+        "chart",
+        "distribution",
+        "bootstrap",
+        "bayesian",
+        "correlation",
+        "analysis",
+        "metric",
+        "assumption",
+        "disagree",
+        "consensus",
+        "ticker",
+        "expected",
+        "probability",
+        "tail",
+        "regime",
+        "historical",
+    )
+
+    if any(pattern in lower for pattern in off_topic_patterns):
+        return (
+            "I'm designed to answer questions about the current quantitative analysis and risk models. "
+            "I can't reliably answer unrelated questions within this workspace.",
+            [],
+        )
+
+    if not any(term in lower for term in analysis_terms):
+        return (
+            "I'm designed to answer questions about the current quantitative analysis and risk models. "
+            "I can't reliably answer unrelated questions within this workspace.",
+            [],
+        )
+
+    if "disagree" in lower or "disagreement" in lower:
+        consensus = build_consensus(results)
+        cited = [result.model for result in results]
+        disagreement = (
+            consensus.metrics.most_influential_disagreement
+            if consensus.metrics
+            else "dispersion across selected models"
+        )
+        return (
+            f"Models disagree when their assumptions produce different tails or expected returns. Here agreement is "
+            f"{consensus.agreement_level.lower()} with a score of {prob(consensus.model_agreement_score)}. "
+            f"The key tension is: {disagreement}.",
+            cited,
+        )
+
+    if "assumption" in lower:
+        consensus = build_consensus(results)
+        cited = [result.model for result in results[:3]]
+        assumptions = "; ".join(consensus.key_assumptions[:4]) or "each model's documented sampling and volatility assumptions"
+        return (
+            f"The committee conclusions depend on assumptions such as: {assumptions}. Changing lookback windows, "
+            "volatility treatment, or simulation count can shift VaR and expected return materially.",
+            cited,
+        )
+
+    if "monte" in lower or "carlo" in lower:
+        match = next((result for result in results if result.model == "Monte Carlo"), None)
+        if match:
+            cited.append("Monte Carlo")
+            return (
+                f"Monte Carlo simulates many price paths from estimated drift and volatility. In this run it reports "
+                f"expected return of {pct(match.expected_return)}, VaR of {pct(match.var95)}, and probability positive "
+                f"of {prob(match.prob_positive)}.",
+                cited,
+            )
+
+    if "analog" in lower or "historical" in lower:
+        cited = [result.model for result in results[:2]]
+        return (
+            "Historical analogs compare today's price pattern to past windows with similar structure. They provide "
+            "context for what followed those periods, but they are not a standalone forecast. Review the Historical "
+            "Analog section for similarity scores and subsequent return/volatility outcomes.",
+            cited,
+        )
+
+    if "portfolio" in lower:
+        cited = [result.model for result in results]
+        return (
+            "This panel analyzes a single asset run. Portfolio risk would combine holdings, weights, and correlations. "
+            "Use Portfolio mode in the workstation to aggregate component VaR and diversification effects across holdings.",
+            cited,
+        )
+
+    if "var" in lower or ("risk" in lower and "tail" in lower):
         risk_model = min(results, key=lambda result: result.var95)
         cited.append(risk_model.model)
         return (

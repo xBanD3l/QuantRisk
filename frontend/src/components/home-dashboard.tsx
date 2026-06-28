@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, BrainCircuit, Download, FileText, FolderKanban, Star, TableProperties } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import { EmptyStatePanel } from "@/components/empty-state-panel";
 import { SectionReveal } from "@/components/section-reveal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -157,7 +158,13 @@ export function HomeDashboard() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted">No saved analyses yet. Run your first committee review from the workstation.</p>
+                <EmptyStatePanel
+                  icon={BrainCircuit}
+                  title="No saved analyses yet"
+                  description="Run your first analysis to begin building your research history. Completed runs are saved automatically when you are signed in."
+                  actionLabel="Run first analysis"
+                  actionHref="/workstation"
+                />
               )}
             </Panel>
           </SectionReveal>
@@ -178,7 +185,13 @@ export function HomeDashboard() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted">Portfolio analyses you run while signed in appear here automatically.</p>
+                <EmptyStatePanel
+                  icon={FolderKanban}
+                  title="No saved portfolios yet"
+                  description="Portfolio analyses you run while signed in appear here automatically."
+                  actionLabel="Analyze a portfolio"
+                  actionHref="/workstation?mode=portfolio"
+                />
               )}
             </Panel>
           </SectionReveal>
@@ -205,7 +218,13 @@ export function HomeDashboard() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted">Reports are saved automatically after each completed analysis.</p>
+                <EmptyStatePanel
+                  icon={FileText}
+                  title="No reports yet"
+                  description="Reports are saved automatically after each completed analysis when you are signed in."
+                  actionLabel="Generate a report"
+                  actionHref="/workstation"
+                />
               )}
             </Panel>
           </SectionReveal>
