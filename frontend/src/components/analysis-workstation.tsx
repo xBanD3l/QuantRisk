@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/components/auth-provider";
 import {
   Activity,
   BarChart3,
@@ -26,7 +26,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { askExplainability, calibrateForecasts, fetchPerformance, reportUrl, runPortfolioAnalysis, streamAnalysis } from "@/lib/api";
+import { askExplainability, calibrateForecasts, fetchPerformance, reportUrl, runPortfolioAnalysis, streamAnalysis, trackEvent } from "@/lib/api";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { saveAnalysis, savePortfolio, saveReport, trackUsage } from "@/lib/supabase/data";
 import type {
   AIProvider,
   AnalysisResponse,
@@ -45,8 +47,8 @@ type WorkstationMode = "single" | "portfolio";
 type SortKey = "model" | "expected_return" | "var95" | "expected_shortfall" | "prob_positive" | "confidence_score";
 
 export function AnalysisWorkstation() {
-  const { data: session } = useSession();
-  const userId = session?.user?.id;
+  const { user, accessToken } = useAuth();
+  const supabase = useMemo(() => (isSupabaseConfigured() ? createClient() : null), []);
   const [mode, setMode] = useState<WorkstationMode>("single");
   const [ticker, setTicker] = useState("AAPL");
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([
@@ -91,15 +93,24 @@ export function AnalysisWorkstation() {
       }
       setLoading(true);
       try {
-        const result = await runPortfolioAnalysis({
-          holdings: validHoldings.map((holding) => ({
-            ticker: holding.ticker.trim().toUpperCase(),
-            weight: holding.weight
-          })),
-          horizon_days: horizon,
-          confidence_level: confidenceLevel
-        });
+        const result = await runPortfolioAnalysis(
+          {
+            holdings: validHoldings.map((holding) => ({
+              ticker: holding.ticker.trim().toUpperCase(),
+              weight: holding.weight
+            })),
+            horizon_days: horizon,
+            confidence_level: confidenceLevel
+          },
+          accessToken
+        );
         setPortfolio(result);
+        if (user && supabase) {
+          const label = validHoldings.map((h) => h.ticker.trim().toUpperCase()).join(", ");
+          void savePortfolio(supabase, user.id, `Portfolio · ${label}`, result);
+          void trackUsage(supabase, user.id, "portfolio_created", { holdings: validHoldings.length });
+          void trackEvent("portfolio_saved", { holdings: validHoldings.length }, accessToken);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Portfolio analysis failed.");
       } finally {
@@ -136,10 +147,16 @@ export function AnalysisWorkstation() {
           onComplete: (result) => {
             setAnalysis(result);
             void refreshPerformance(setPerformance);
+            if (user && supabase) {
+              void saveAnalysis(supabase, user.id, result);
+              void saveReport(supabase, user.id, result);
+              void trackUsage(supabase, user.id, "analysis_run", { ticker: result.ticker, horizon: result.horizon_days });
+              void trackEvent("analysis_saved", { ticker: result.ticker }, accessToken);
+            }
           },
           onError: (message) => setError(message)
         },
-        userId
+        accessToken
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed.");
@@ -180,7 +197,13 @@ export function AnalysisWorkstation() {
   }
 
   return (
-    <div className="mx-auto grid max-w-[1600px] lg:grid-cols-[360px_1fr]">
+    <div className="mx-auto max-w-[1600px]">
+      {!user ? (
+        <div className="border-b border-line bg-teal/5 px-5 py-3 text-sm text-muted lg:px-6">
+          Sign in to save your analyses and access them from any device.
+        </div>
+      ) : null}
+      <div className="grid lg:grid-cols-[360px_1fr]">
         <aside className="border-b border-line bg-surface p-5 lg:min-h-[calc(100vh-57px)] lg:border-b-0 lg:border-r">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-2 gap-2 rounded-md border border-line bg-panel p-1">
@@ -384,6 +407,7 @@ export function AnalysisWorkstation() {
           )}
         </section>
       </div>
+    </div>
   );
 }
 

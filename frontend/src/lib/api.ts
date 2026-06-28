@@ -16,8 +16,8 @@ import type {
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-function userHeaders(userId?: string | null): HeadersInit {
-  return userId ? { "X-User-Id": userId } : {};
+function authHeaders(accessToken?: string | null): HeadersInit {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -34,10 +34,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function runAnalysis(payload: AnalysisRequest, userId?: string | null) {
+export async function runAnalysis(payload: AnalysisRequest, accessToken?: string | null) {
   const response = await fetch(`${API_BASE}/api/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...userHeaders(userId) },
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(payload)
   });
   return parseResponse<AnalysisResponse>(response);
@@ -78,15 +78,15 @@ function parseSseChunk(chunk: string, handlers: StreamHandlers) {
   }
 }
 
-export async function streamAnalysis(payload: AnalysisRequest, handlers: StreamHandlers, userId?: string | null) {
+export async function streamAnalysis(payload: AnalysisRequest, handlers: StreamHandlers, accessToken?: string | null) {
   const response = await fetch(`${API_BASE}/api/analyze/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...userHeaders(userId) },
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(payload)
   });
 
   if (response.status === 404) {
-    const analysis = await runAnalysis(payload, userId);
+    const analysis = await runAnalysis(payload, accessToken);
     handlers.onComplete?.(analysis);
     return;
   }
@@ -128,24 +128,27 @@ export async function streamAnalysis(payload: AnalysisRequest, handlers: StreamH
   }
 }
 
-export async function runPortfolioAnalysis(payload: PortfolioRequest) {
+export async function runPortfolioAnalysis(payload: PortfolioRequest, accessToken?: string | null) {
   const response = await fetch(`${API_BASE}/api/portfolio/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(payload)
   });
   return parseResponse<PortfolioResponse>(response);
 }
 
-export async function calibrateForecasts() {
-  const response = await fetch(`${API_BASE}/api/forecasts/calibrate`, { method: "POST" });
+export async function calibrateForecasts(accessToken?: string | null) {
+  const response = await fetch(`${API_BASE}/api/forecasts/calibrate`, {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
   return parseResponse<CalibrationSummary>(response);
 }
 
-export async function askExplainability(analysisId: string, question: string) {
+export async function askExplainability(analysisId: string, question: string, accessToken?: string | null) {
   const response = await fetch(`${API_BASE}/api/explain`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ analysis_id: analysisId, question })
   });
   return parseResponse<ExplainResponse>(response);
@@ -170,30 +173,33 @@ export async function fetchMethodology(model: string) {
   return parseResponse<ModelMethodology>(response);
 }
 
-export async function fetchForecasts(userId?: string | null) {
-  const response = await fetch(`${API_BASE}/api/forecasts`, { headers: userHeaders(userId) });
+export async function fetchForecasts(accessToken?: string | null) {
+  const response = await fetch(`${API_BASE}/api/forecasts`, { headers: authHeaders(accessToken) });
   return parseResponse<Array<{ analysis_id: string; ticker: string; analysis_time: string; horizon_days: number }>>(response);
 }
 
-export async function fetchWorkspace(userId: string) {
-  const response = await fetch(`${API_BASE}/api/users/me`, { headers: userHeaders(userId) });
+export async function fetchWorkspace(accessToken: string) {
+  const response = await fetch(`${API_BASE}/api/users/me`, { headers: authHeaders(accessToken) });
   return parseResponse<UserWorkspace>(response);
 }
 
-export async function runResearchScan(payload: ResearchRequest, userId?: string | null) {
+export async function runResearchScan(payload: ResearchRequest, accessToken?: string | null) {
   const response = await fetch(`${API_BASE}/api/research/scan`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...userHeaders(userId) },
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify(payload)
   });
   return parseResponse<ResearchResponse>(response);
 }
 
-export async function trackEvent(event: string, metadata: Record<string, string | number> = {}) {
+export async function trackEvent(
+  event: string,
+  metadata: Record<string, string | number> = {},
+  accessToken?: string | null
+) {
   await fetch(`${API_BASE}/api/analytics/event`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(accessToken) },
     body: JSON.stringify({ event, metadata })
   }).catch(() => undefined);
 }
-

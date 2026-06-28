@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
+from .auth import get_user_id, require_user_id
 from .core.config import get_settings
 from .schemas import (
     AnalysisRequest,
@@ -56,17 +57,16 @@ app.add_middleware(
 )
 
 
-def _user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str | None:
-    return x_user_id.strip() if x_user_id else None
-
-
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": settings.app_name, "version": "0.2.0"}
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)
-async def analyze(request: AnalysisRequest, user_id: str | None = Header(default=None, alias="X-User-Id")) -> AnalysisResponse:
+async def analyze(
+    request: AnalysisRequest,
+    user_id: str | None = Depends(get_user_id),
+) -> AnalysisResponse:
     ticker = request.ticker.upper().strip()
     if not ticker:
         raise HTTPException(status_code=400, detail="Ticker is required.")
@@ -80,7 +80,7 @@ async def analyze(request: AnalysisRequest, user_id: str | None = Header(default
 @app.post("/api/analyze/stream")
 async def analyze_stream(
     request: AnalysisRequest,
-    user_id: str | None = Header(default=None, alias="X-User-Id"),
+    user_id: str | None = Depends(get_user_id),
 ) -> StreamingResponse:
     ticker = request.ticker.upper().strip()
     if not ticker:
@@ -96,7 +96,10 @@ async def analyze_stream(
 
 
 @app.post("/api/portfolio/analyze", response_model=PortfolioResponse)
-def portfolio_analyze(request: PortfolioRequest, user_id: str | None = Header(default=None, alias="X-User-Id")) -> PortfolioResponse:
+def portfolio_analyze(
+    request: PortfolioRequest,
+    user_id: str | None = Depends(get_user_id),
+) -> PortfolioResponse:
     track_event("portfolio_run", {"holdings": len(request.holdings), "user_id": user_id or "anonymous"})
     try:
         return analyze_portfolio(request)
@@ -105,7 +108,10 @@ def portfolio_analyze(request: PortfolioRequest, user_id: str | None = Header(de
 
 
 @app.post("/api/research/scan", response_model=ResearchResponse)
-def research_scan(request: ResearchRequest, user_id: str | None = Header(default=None, alias="X-User-Id")) -> ResearchResponse:
+def research_scan(
+    request: ResearchRequest,
+    user_id: str | None = Depends(get_user_id),
+) -> ResearchResponse:
     track_event("research_scan", {"watchlist": request.watchlist, "user_id": user_id or "anonymous"})
     try:
         return run_research_scan(request)
@@ -135,7 +141,7 @@ def methodology(model: str) -> ModelMethodology:
 
 
 @app.get("/api/forecasts")
-def forecasts(user_id: str | None = Header(default=None, alias="X-User-Id")) -> list[dict]:
+def forecasts(user_id: str | None = Depends(get_user_id)) -> list[dict]:
     return list_analyses(user_id=user_id)
 
 
@@ -172,8 +178,14 @@ def report(analysis_id: str):
 
 
 @app.post("/api/analytics/event")
-def analytics_event(event: AnalyticsEvent) -> dict[str, str]:
-    track_event(event.event, {key: str(value) for key, value in event.metadata.items()})
+def analytics_event(
+    event: AnalyticsEvent,
+    user_id: str | None = Depends(get_user_id),
+) -> dict[str, str]:
+    metadata = {key: str(value) for key, value in event.metadata.items()}
+    if user_id:
+        metadata["user_id"] = user_id
+    track_event(event.event, metadata)
     return {"status": "ok"}
 
 
@@ -183,9 +195,7 @@ def analytics() -> dict:
 
 
 @app.get("/api/users/me", response_model=UserWorkspace)
-def user_workspace(user_id: str | None = Header(default=None, alias="X-User-Id")) -> UserWorkspace:
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+def user_workspace(user_id: str = Depends(require_user_id)) -> UserWorkspace:
     return get_workspace(user_id)
 
 
@@ -194,35 +204,27 @@ def user_profile(
     name: str | None = None,
     email: str | None = None,
     image: str | None = None,
-    user_id: str | None = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(require_user_id),
 ) -> UserWorkspace:
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required.")
     return upsert_user_profile(user_id, name, email, image)
 
 
 @app.post("/api/users/favorites/{ticker}", response_model=UserWorkspace)
-def favorite_ticker(ticker: str, user_id: str | None = Header(default=None, alias="X-User-Id")) -> UserWorkspace:
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+def favorite_ticker(ticker: str, user_id: str = Depends(require_user_id)) -> UserWorkspace:
     return toggle_favorite(user_id, ticker)
 
 
 @app.get("/api/users/saved", response_model=list[SavedItem])
 def saved_items(
     item_type: str | None = None,
-    user_id: str | None = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(require_user_id),
 ) -> list[SavedItem]:
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required.")
     return list_saved_items(user_id, item_type)
 
 
 @app.post("/api/users/saved", response_model=SavedItem)
 def create_saved_item(
     body: SaveItemRequest,
-    user_id: str | None = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(require_user_id),
 ) -> SavedItem:
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required.")
     return save_item(user_id, body.item_type, body.title, body.payload)

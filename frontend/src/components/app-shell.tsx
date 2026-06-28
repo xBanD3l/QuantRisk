@@ -2,20 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signIn, signOut, useSession } from "next-auth/react";
 import {
   BarChart3,
   BrainCircuit,
   FlaskConical,
   Home,
-  LogIn,
-  LogOut,
   Moon,
   Sun,
   TableProperties
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
+import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -27,7 +25,6 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
   const { theme, toggle } = useTheme();
 
   return (
@@ -67,38 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="mt-auto border-t border-line pt-6">
-            {session?.user ? (
-              <div className="rounded-lg border border-line bg-panel p-3">
-                <div className="flex items-center gap-3">
-                  {session.user.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={session.user.image} alt="" className="h-9 w-9 rounded-full border border-line" />
-                  ) : (
-                    <div className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel2 text-xs font-semibold">
-                      {(session.user.name ?? "U").slice(0, 1)}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{session.user.name}</p>
-                    <p className="truncate text-xs text-muted">{session.user.email}</p>
-                  </div>
-                </div>
-                <Button type="button" variant="ghost" size="sm" className="mt-3 w-full" onClick={() => signOut()}>
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign out
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Button type="button" className="w-full" onClick={() => signIn("google")}>
-                  <LogIn className="h-4 w-4" aria-hidden="true" />
-                  Sign in with Google
-                </Button>
-                <Button type="button" variant="secondary" className="w-full" onClick={() => signIn("guest")}>
-                  Continue as guest
-                </Button>
-              </div>
-            )}
+            <UserMenu />
           </div>
         </aside>
 
@@ -119,9 +85,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ))}
             </div>
             <p className="hidden text-sm text-muted lg:block">Institutional quantitative research terminal</p>
-            <Button type="button" variant="ghost" size="sm" onClick={toggle} aria-label="Toggle theme">
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="lg:hidden">
+                <UserMenu />
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={toggle} aria-label="Toggle theme">
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </div>
           </header>
           <main className="flex-1">{children}</main>
         </div>

@@ -3,12 +3,15 @@
 import { useMemo, useState } from "react";
 import { Download, Loader2, Play, Search } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useAuth } from "@/components/auth-provider";
 import { SectionReveal } from "@/components/section-reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { runResearchScan, API_BASE } from "@/lib/api";
+import { runResearchScan, API_BASE, trackEvent } from "@/lib/api";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { trackUsage } from "@/lib/supabase/data";
 import type { ResearchResponse } from "@/lib/types";
 import { cn, formatPct, formatProb } from "@/lib/utils";
 
@@ -17,6 +20,8 @@ const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 type SortKey = "expected_return" | "var95" | "prob_positive" | "agreement_score" | "confidence";
 
 export function ResearchWorkstation() {
+  const { user, accessToken } = useAuth();
+  const supabase = useMemo(() => (isSupabaseConfigured() ? createClient() : null), []);
   const [watchlist, setWatchlist] = useState("dow30");
   const [horizon, setHorizon] = useState(30);
   const [customTickers, setCustomTickers] = useState("AAPL, MSFT, NVDA");
@@ -43,7 +48,11 @@ export function ResearchWorkstation() {
         horizon_days: horizon,
         confidence_level: 0.95
       };
-      setResult(await runResearchScan(payload));
+      setResult(await runResearchScan(payload, accessToken));
+      if (user && supabase) {
+        void trackUsage(supabase, user.id, "research_scan", { watchlist });
+        void trackEvent("research_scan", { watchlist }, accessToken);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Research scan failed.");
     } finally {
