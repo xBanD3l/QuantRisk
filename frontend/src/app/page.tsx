@@ -1,6 +1,5 @@
-import { AnalysisWorkstation } from "@/components/analysis-workstation";
+import { HomeDashboard } from "@/components/home-dashboard";
 
-export default function Home() {
-  return <AnalysisWorkstation />;
+export default function HomePage() {
+  return <HomeDashboard />;
 }
-

@@ -55,13 +55,38 @@ if (-not $SkipInstall) {
     }
 }
 
-if (Test-Port 8000) {
+function Test-BackendReady {
+    try {
+        $openapi = Invoke-RestMethod -Uri "http://127.0.0.1:8000/openapi.json" -TimeoutSec 4
+        return [bool]$openapi.paths.'/api/analyze/stream'
+    } catch {
+        return $false
+    }
+}
+
+function Stop-PortListener {
+    param([int]$Port)
+    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    foreach ($connection in $connections) {
+        if ($connection.OwningProcess) {
+            Stop-Process -Id $connection.OwningProcess -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+if (Test-BackendReady) {
     Write-Host "Backend already appears to be running on http://127.0.0.1:8000" -ForegroundColor Green
 } else {
-    Write-Host "Starting backend on http://127.0.0.1:8000" -ForegroundColor Green
+    if (Test-Port 8000) {
+        Write-Host "Restarting stale backend on http://127.0.0.1:8000" -ForegroundColor Yellow
+        Stop-PortListener -Port 8000
+        Start-Sleep -Seconds 1
+    } else {
+        Write-Host "Starting backend on http://127.0.0.1:8000" -ForegroundColor Green
+    }
     Start-AppProcess `
         -Title "Quant Committee AI - Backend" `
-        -Command "Set-Location '$Root'; & '$BackendPython' -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 *> '$BackendLog'"
+        -Command "Set-Location '$Root'; & '$BackendPython' -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload *> '$BackendLog'"
 }
 
 if (Test-Port 3000) {

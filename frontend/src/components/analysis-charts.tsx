@@ -14,7 +14,9 @@ const tabs = [
   "VaR",
   "Volatility",
   "Drawdown",
-  "Intervals"
+  "Intervals",
+  "Comparison",
+  "Agreement"
 ] as const;
 
 type ChartTab = (typeof tabs)[number];
@@ -182,6 +184,57 @@ function buildChart(active: ChartTab, analysis: AnalysisResponse) {
         }
       ],
       layout: { ...baseLayout("Drawdown history"), yaxis: { title: "Drawdown (%)", gridcolor: "#242a31" } }
+    };
+  }
+
+  if (active === "Comparison") {
+    return {
+      data: [
+        {
+          type: "bar",
+          name: "Expected Return",
+          x: analysis.model_results.map((item) => item.model),
+          y: analysis.model_results.map((item) => item.expected_return * 100),
+          marker: { color: "#39d0b2" }
+        },
+        {
+          type: "bar",
+          name: "Probability Positive",
+          x: analysis.model_results.map((item) => item.model),
+          y: analysis.model_results.map((item) => item.prob_positive * 100),
+          marker: { color: "#8f98a6" }
+        }
+      ],
+      layout: { ...baseLayout("Model comparison"), barmode: "group", yaxis: { title: "Percent", gridcolor: "#242a31" } }
+    };
+  }
+
+  if (active === "Agreement") {
+    const metrics = analysis.consensus.metrics;
+    const agreement = metrics?.committee_agreement_score ?? analysis.consensus.model_agreement_score;
+    const confidence = metrics?.forecast_confidence ?? analysis.consensus.overall_confidence;
+    const diversity = metrics?.model_diversity_score ?? 0;
+    const stability = metrics?.prediction_stability ?? 0;
+    return {
+      data: [
+        {
+          type: "scatterpolar",
+          r: [agreement * 100, confidence * 100, (1 - diversity) * 100, stability * 100],
+          theta: ["Agreement", "Confidence", "Cohesion", "Stability"],
+          fill: "toself",
+          name: "Committee",
+          marker: { color: "#39d0b2" },
+          line: { color: "#39d0b2" }
+        }
+      ],
+      layout: {
+        ...baseLayout("Committee agreement radar"),
+        polar: {
+          bgcolor: "#111418",
+          radialaxis: { visible: true, range: [0, 100], gridcolor: "#242a31", linecolor: "#303740" },
+          angularaxis: { gridcolor: "#242a31", linecolor: "#303740" }
+        }
+      }
     };
   }
 

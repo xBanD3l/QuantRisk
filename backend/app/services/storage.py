@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from ..core.config import get_settings
-from ..schemas import AnalysisResponse, ForecastPerformance, ModelResult
+from ..schemas import AnalysisResponse
 
 
 def _store_path() -> Path:
@@ -28,13 +27,35 @@ def _write_all(records: list[dict]) -> None:
     path.write_text(json.dumps(records, indent=2, default=str), encoding="utf-8")
 
 
-def save_analysis(analysis: AnalysisResponse) -> None:
+def save_analysis(analysis: AnalysisResponse, user_id: str | None = None) -> None:
+    record = analysis.model_dump(mode="json")
+    if user_id:
+        record["user_id"] = user_id
     records = _read_all()
-    records.append(analysis.model_dump(mode="json"))
+    records.append(record)
     _write_all(records)
+    if user_id:
+        user_path = get_settings().data_dir / "users" / user_id / "forecasts.json"
+        user_path.parent.mkdir(parents=True, exist_ok=True)
+        user_records: list[dict] = []
+        if user_path.exists():
+            try:
+                user_records = json.loads(user_path.read_text(encoding="utf-8"))
+            except Exception:
+                user_records = []
+        user_records.append(record)
+        user_path.write_text(json.dumps(user_records, indent=2, default=str), encoding="utf-8")
 
 
-def list_analyses(limit: int = 50) -> list[dict]:
+def list_analyses(limit: int = 50, user_id: str | None = None) -> list[dict]:
+    if user_id:
+        user_path = get_settings().data_dir / "users" / user_id / "forecasts.json"
+        if user_path.exists():
+            try:
+                records = json.loads(user_path.read_text(encoding="utf-8"))
+                return list(reversed(records))[:limit]
+            except Exception:
+                pass
     return list(reversed(_read_all()))[:limit]
 
 
@@ -43,49 +64,4 @@ def get_analysis(analysis_id: str) -> AnalysisResponse | None:
         if item.get("analysis_id") == analysis_id:
             return AnalysisResponse.model_validate(item)
     return None
-
-
-def performance_summary() -> list[ForecastPerformance]:
-    records = _read_all()
-    buckets: dict[str, dict[str, list[float] | int]] = {}
-    today = date.today()
-
-    for record in records:
-        analysis_date = datetime.fromisoformat(record["analysis_time"]).date()
-        horizon = int(record["horizon_days"])
-        is_realized = analysis_date + timedelta(days=horizon) <= today
-        for raw_result in record.get("model_results", []):
-            result = ModelResult.model_validate(raw_result)
-            bucket = buckets.setdefault(
-                result.model,
-                {"forecasts": 0, "realized": 0, "errors": [], "var_hits": [], "interval_hits": []},
-            )
-            bucket["forecasts"] = int(bucket["forecasts"]) + 1
-            if is_realized:
-                bucket["realized"] = int(bucket["realized"]) + 1
-                # Realized pricing is intentionally not backfilled here unless a data source confirms it.
-                # These placeholders keep the tracker structure ready for scheduled calibration jobs.
-            else:
-                continue
-
-    output: list[ForecastPerformance] = []
-    for model, bucket in buckets.items():
-        forecasts = int(bucket["forecasts"])
-        realized = int(bucket["realized"])
-        pending = forecasts - realized
-        errors = bucket["errors"] if isinstance(bucket["errors"], list) else []
-        var_hits = bucket["var_hits"] if isinstance(bucket["var_hits"], list) else []
-        interval_hits = bucket["interval_hits"] if isinstance(bucket["interval_hits"], list) else []
-        output.append(
-            ForecastPerformance(
-                model=model,
-                forecasts=forecasts,
-                realized=realized,
-                pending=pending,
-                var_exceedance_rate=(sum(var_hits) / len(var_hits)) if var_hits else None,
-                interval_hit_rate=(sum(interval_hits) / len(interval_hits)) if interval_hits else None,
-                average_error=(sum(errors) / len(errors)) if errors else None,
-            )
-        )
-    return sorted(output, key=lambda item: item.model)
 

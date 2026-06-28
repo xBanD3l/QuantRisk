@@ -65,7 +65,11 @@ def compound_return(returns: list[float]) -> float:
     return value - 1.0
 
 
-def summarize_distribution(distribution: list[float], sample_limit: int = 2500) -> dict[str, float | list[float]]:
+def summarize_distribution(
+    distribution: list[float],
+    confidence_level: float = 0.95,
+    sample_limit: int = 2500,
+) -> dict[str, float | list[float]]:
     if not distribution:
         return {
             "expected_return": 0.0,
@@ -76,7 +80,8 @@ def summarize_distribution(distribution: list[float], sample_limit: int = 2500) 
             "sample": [],
         }
 
-    var95 = percentile(distribution, 0.05)
+    tail_pct = max(min(1.0 - confidence_level, 0.10), 0.01)
+    var95 = percentile(distribution, tail_pct)
     tail = [value for value in distribution if value <= var95]
     stride = max(1, len(distribution) // sample_limit)
     return {
@@ -84,7 +89,10 @@ def summarize_distribution(distribution: list[float], sample_limit: int = 2500) 
         "var95": var95,
         "expected_shortfall": mean(tail) if tail else var95,
         "prob_positive": sum(1 for value in distribution if value > 0) / len(distribution),
-        "confidence_interval": [percentile(distribution, 0.025), percentile(distribution, 0.975)],
+        "confidence_interval": [
+            percentile(distribution, tail_pct / 2),
+            percentile(distribution, 1 - tail_pct / 2),
+        ],
         "sample": distribution[::stride][:sample_limit],
     }
 

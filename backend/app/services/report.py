@@ -54,9 +54,11 @@ def build_pdf_report(analysis: AnalysisResponse) -> Path:
         bottomMargin=0.55 * inch,
     )
     story = [
-        Paragraph("Quant Committee AI Research Report", title),
-        Paragraph(f"{analysis.ticker} | {analysis.horizon_days}-day horizon | {analysis.analysis_time:%Y-%m-%d %H:%M}", body),
-        Spacer(1, 0.15 * inch),
+        Spacer(1, 0.35 * inch),
+        Paragraph("Quant Committee AI", title),
+        Paragraph("Institutional Quantitative Research Report", heading),
+        Paragraph(f"{analysis.ticker} | {analysis.horizon_days}-day horizon | {analysis.analysis_time:%Y-%m-%d %H:%M UTC}", body),
+        Spacer(1, 0.2 * inch),
         Paragraph("Executive Summary", heading),
         Paragraph(analysis.consensus.executive_summary, body),
     ]
@@ -97,9 +99,16 @@ def build_pdf_report(analysis: AnalysisResponse) -> Path:
     for risk in analysis.consensus.key_risks:
         story.append(Paragraph(f"- {risk}", body))
 
-    story.append(Paragraph("Assumptions & Methodology", heading))
+    story.append(Paragraph("Appendix: Model Assumptions", heading))
     for assumption in analysis.consensus.key_assumptions:
         story.append(Paragraph(f"- {assumption}", body))
+
+    if analysis.consensus.metrics:
+        story.append(Paragraph("Appendix: Consensus Metrics", heading))
+        metrics = analysis.consensus.metrics
+        story.append(Paragraph(f"Most optimistic model: {metrics.most_optimistic_model}", body))
+        story.append(Paragraph(f"Most conservative model: {metrics.most_conservative_model}", body))
+        story.append(Paragraph(f"Key disagreement: {metrics.most_influential_disagreement}", body))
 
     doc.build(story)
     return filename

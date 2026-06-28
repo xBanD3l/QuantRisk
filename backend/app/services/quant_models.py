@@ -128,10 +128,11 @@ def _result(
     distribution: list[float],
     reasoning: str,
     confidence_score: float,
+    confidence_level: float = 0.95,
     paths: list[list[float]] | None = None,
     metadata: dict[str, float | int | str] | None = None,
 ) -> ModelResult:
-    summary = summarize_distribution(distribution)
+    summary = summarize_distribution(distribution, confidence_level=confidence_level)
     spec = MODEL_LIBRARY[model]
     return ModelResult(
         model=model,
@@ -151,7 +152,7 @@ def _result(
     )
 
 
-def historical_simulation(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelResult:
+def historical_simulation(ticker: str, bars: list[MarketBar], horizon_days: int, confidence_level: float = 0.95) -> ModelResult:
     prices = [bar.close for bar in bars]
     returns = _simple_returns(prices)
     if len(returns) >= horizon_days:
@@ -171,10 +172,11 @@ def historical_simulation(ticker: str, bars: list[MarketBar], horizon_days: int)
         distribution,
         reasoning,
         _confidence_from_sample(len(distribution), penalty=0.04 if len(distribution) < 100 else 0.0),
+        confidence_level=confidence_level,
     )
 
 
-def monte_carlo(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelResult:
+def monte_carlo(ticker: str, bars: list[MarketBar], horizon_days: int, confidence_level: float = 0.95) -> ModelResult:
     rng = random.Random(_seed(ticker, "Monte Carlo", horizon_days))
     prices = [bar.close for bar in bars]
     log_returns = _log_returns(prices)
@@ -204,12 +206,13 @@ def monte_carlo(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelR
         distribution,
         reasoning,
         _confidence_from_sample(len(log_returns), penalty=0.07),
+        confidence_level=confidence_level,
         paths=paths,
         metadata={"simulations": simulations, "daily_drift": round(mu, 8), "daily_volatility": round(sigma, 8)},
     )
 
 
-def garch_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelResult:
+def garch_model(ticker: str, bars: list[MarketBar], horizon_days: int, confidence_level: float = 0.95) -> ModelResult:
     rng = random.Random(_seed(ticker, "GARCH", horizon_days))
     prices = [bar.close for bar in bars]
     log_returns = _log_returns(prices)
@@ -249,6 +252,7 @@ def garch_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelR
         distribution,
         reasoning,
         _confidence_from_sample(len(log_returns), penalty=0.05),
+        confidence_level=confidence_level,
         metadata={
             "forecast_volatility": round(recent_vol, 6),
             "long_run_volatility": round(long_vol, 6),
@@ -257,7 +261,7 @@ def garch_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelR
     )
 
 
-def ewma_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelResult:
+def ewma_model(ticker: str, bars: list[MarketBar], horizon_days: int, confidence_level: float = 0.95) -> ModelResult:
     rng = random.Random(_seed(ticker, "EWMA", horizon_days))
     prices = [bar.close for bar in bars]
     log_returns = _log_returns(prices)
@@ -282,11 +286,12 @@ def ewma_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelRe
         distribution,
         reasoning,
         _confidence_from_sample(len(log_returns), penalty=0.06),
+        confidence_level=confidence_level,
         metadata={"lambda": lam, "forecast_volatility": round(math.sqrt(variance * 252), 6)},
     )
 
 
-def bootstrap_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelResult:
+def bootstrap_model(ticker: str, bars: list[MarketBar], horizon_days: int, confidence_level: float = 0.95) -> ModelResult:
     rng = random.Random(_seed(ticker, "Bootstrap", horizon_days))
     prices = [bar.close for bar in bars]
     returns = _simple_returns(prices)
@@ -305,11 +310,12 @@ def bootstrap_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> Mo
         distribution,
         reasoning,
         _confidence_from_sample(len(returns), penalty=0.03),
+        confidence_level=confidence_level,
         metadata={"simulations": simulations},
     )
 
 
-def bayesian_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> ModelResult:
+def bayesian_model(ticker: str, bars: list[MarketBar], horizon_days: int, confidence_level: float = 0.95) -> ModelResult:
     rng = random.Random(_seed(ticker, "Bayesian", horizon_days))
     prices = [bar.close for bar in bars]
     log_returns = _log_returns(prices)
@@ -335,6 +341,7 @@ def bayesian_model(ticker: str, bars: list[MarketBar], horizon_days: int) -> Mod
         distribution,
         reasoning,
         _confidence_from_sample(n, penalty=0.02),
+        confidence_level=confidence_level,
         metadata={
             "prior_mean": prior_mu,
             "prior_strength_days": prior_strength,
@@ -354,10 +361,16 @@ MODEL_RUNNERS = {
 }
 
 
-def run_models(ticker: str, bars: list[MarketBar], horizon_days: int, selected: list[ModelName]) -> list[ModelResult]:
+def run_models(
+    ticker: str,
+    bars: list[MarketBar],
+    horizon_days: int,
+    selected: list[ModelName],
+    confidence_level: float = 0.95,
+) -> list[ModelResult]:
     output: list[ModelResult] = []
     for name in selected:
         runner = MODEL_RUNNERS[name]
-        output.append(runner(ticker, bars, horizon_days))
+        output.append(runner(ticker, bars, horizon_days, confidence_level))
     return output
 

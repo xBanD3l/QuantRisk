@@ -45,35 +45,80 @@ class AIProviderAdapter:
     def __init__(self, api_key: str | None):
         self.api_key = api_key
 
-    async def generate_statement(self, persona: Persona, result: ModelResult) -> str | None:
+    async def generate_statement(
+        self,
+        persona: Persona,
+        result: ModelResult,
+        peers: list[ModelResult] | None = None,
+    ) -> str | None:
         return None
 
 
 class LocalCommitteeAdapter(AIProviderAdapter):
-    async def generate_statement(self, persona: Persona, result: ModelResult) -> str | None:
+    async def generate_statement(
+        self,
+        persona: Persona,
+        result: ModelResult,
+        peers: list[ModelResult] | None = None,
+    ) -> str | None:
         risk_tone = "downside risk is material" if result.var95 < -0.08 else "downside risk is contained"
         direction = "positive" if result.expected_return > 0 else "negative"
+        assumption = result.assumptions[0] if result.assumptions else "its core sampling assumptions"
+        peer_note = ""
+        if peers:
+            optimistic = max(peers, key=lambda item: item.expected_return)
+            conservative = min(peers, key=lambda item: item.var95)
+            if optimistic.expected_return > result.expected_return + 0.015:
+                peer_note = (
+                    f" {optimistic.model} is more constructive at {pct(optimistic.expected_return)}, "
+                    f"which I would weigh if recent volatility moderates."
+                )
+            elif conservative.var95 < result.var95 - 0.01:
+                peer_note = (
+                    f" {conservative.model} flags a deeper tail at {pct(conservative.var95)}, "
+                    f"and that would raise my concern if the volatility regime persists."
+                )
+        change_trigger = (
+            f"My view would shift if realized volatility diverged from {assumption.lower()} "
+            f"or if the expected-return estimate moved beyond the current interval "
+            f"[{pct(result.confidence_interval[0])}, {pct(result.confidence_interval[1])}]."
+        )
         return (
             f"{persona.name} ({persona.role}) reads the {result.model} evidence as a {direction} "
-            f"{persona.model.lower()} signal over the horizon. The model estimates an expected return of "
-            f"{pct(result.expected_return)}, a 95% VaR of {pct(result.var95)}, and a positive-return "
-            f"probability of {prob(result.prob_positive)}; under its assumptions, {risk_tone}."
+            f"signal over the horizon. The model estimates an expected return of {pct(result.expected_return)}, "
+            f"VaR of {pct(result.var95)}, and a positive-return probability of {prob(result.prob_positive)}; "
+            f"under its assumptions, {risk_tone}.{peer_note} {change_trigger}"
         )
 
 
 class OpenAIAdapter(AIProviderAdapter):
-    async def generate_statement(self, persona: Persona, result: ModelResult) -> str | None:
-        return await _post_openai(self.api_key, _statement_prompt(persona, result))
+    async def generate_statement(
+        self,
+        persona: Persona,
+        result: ModelResult,
+        peers: list[ModelResult] | None = None,
+    ) -> str | None:
+        return await _post_openai(self.api_key, _statement_prompt(persona, result, peers))
 
 
 class AnthropicAdapter(AIProviderAdapter):
-    async def generate_statement(self, persona: Persona, result: ModelResult) -> str | None:
-        return await _post_anthropic(self.api_key, _statement_prompt(persona, result))
+    async def generate_statement(
+        self,
+        persona: Persona,
+        result: ModelResult,
+        peers: list[ModelResult] | None = None,
+    ) -> str | None:
+        return await _post_anthropic(self.api_key, _statement_prompt(persona, result, peers))
 
 
 class GeminiAdapter(AIProviderAdapter):
-    async def generate_statement(self, persona: Persona, result: ModelResult) -> str | None:
-        return await _post_gemini(self.api_key, _statement_prompt(persona, result))
+    async def generate_statement(
+        self,
+        persona: Persona,
+        result: ModelResult,
+        peers: list[ModelResult] | None = None,
+    ) -> str | None:
+        return await _post_gemini(self.api_key, _statement_prompt(persona, result, peers))
 
 
 def make_adapter(provider: str, api_key: str | None) -> AIProviderAdapter:
@@ -88,19 +133,27 @@ def make_adapter(provider: str, api_key: str | None) -> AIProviderAdapter:
     return LocalCommitteeAdapter(None)
 
 
-def _statement_prompt(persona: Persona, result: ModelResult) -> str:
+def _statement_prompt(persona: Persona, result: ModelResult, peers: list[ModelResult] | None = None) -> str:
     evidence = "\n".join(f"- {item}" for item in compact_model_evidence(result))
     assumptions = "\n".join(f"- {item}" for item in result.assumptions)
+    peer_lines = ""
+    if peers:
+        peer_lines = "\nPeer model outputs (reference only, do not invent numbers):\n" + "\n".join(
+            f"- {peer.model}: expected return {pct(peer.expected_return)}, VaR {pct(peer.var95)}"
+            for peer in peers[:4]
+        )
     return (
         "You are writing one concise institutional quant committee statement.\n"
         "Rules: reference only the provided metrics, do not invent numbers, stay within this model's domain, "
-        "avoid investment advice and theatrical debate.\n\n"
+        "explain one assumption, one uncertainty, what would change your view, and optionally reference a peer "
+        "model when disagreeing. Avoid investment advice and theatrical debate.\n\n"
         f"Persona: {persona.name}, {persona.role}\n"
         f"Assigned model: {result.model}\n"
         f"Model reasoning: {result.reasoning}\n"
         f"Metrics:\n{evidence}\n"
-        f"Assumptions:\n{assumptions}\n\n"
-        "Return only the statement, 2 to 4 sentences."
+        f"Assumptions:\n{assumptions}\n"
+        f"{peer_lines}\n\n"
+        "Return only the statement, 3 to 5 sentences."
     )
 
 

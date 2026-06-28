@@ -1,0 +1,131 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signIn, signOut, useSession } from "next-auth/react";
+import {
+  BarChart3,
+  BrainCircuit,
+  FlaskConical,
+  Home,
+  LogIn,
+  LogOut,
+  Moon,
+  Sun,
+  TableProperties
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useTheme } from "@/components/theme-provider";
+import { cn } from "@/lib/utils";
+
+const nav = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/workstation", label: "Workstation", icon: BrainCircuit },
+  { href: "/research", label: "Research Mode", icon: TableProperties },
+  { href: "/methodology", label: "Methodology", icon: FlaskConical }
+];
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const { theme, toggle } = useTheme();
+
+  return (
+    <div className="min-h-screen bg-ink text-text">
+      <div className="mx-auto flex min-h-screen max-w-[1680px]">
+        <aside className="hidden min-h-screen w-64 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
+          <div className="mb-8 px-2">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-panel shadow-workstation">
+                <BarChart3 className="h-5 w-5 text-teal" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold tracking-wide">Quant Committee AI</p>
+                <p className="text-xs text-muted">Research Workstation</p>
+              </div>
+            </div>
+          </div>
+
+          <nav className="flex-1 space-y-1">
+            {nav.map((item) => {
+              const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition",
+                    active ? "bg-panel text-teal" : "text-muted hover:bg-panel hover:text-text"
+                  )}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto border-t border-line pt-6">
+            {session?.user ? (
+              <div className="rounded-lg border border-line bg-panel p-3">
+                <div className="flex items-center gap-3">
+                  {session.user.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={session.user.image} alt="" className="h-9 w-9 rounded-full border border-line" />
+                  ) : (
+                    <div className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel2 text-xs font-semibold">
+                      {(session.user.name ?? "U").slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{session.user.name}</p>
+                    <p className="truncate text-xs text-muted">{session.user.email}</p>
+                  </div>
+                </div>
+                <Button type="button" variant="ghost" size="sm" className="mt-3 w-full" onClick={() => signOut()}>
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Sign out
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Button type="button" className="w-full" onClick={() => signIn("google")}>
+                  <LogIn className="h-4 w-4" aria-hidden="true" />
+                  Sign in with Google
+                </Button>
+                <Button type="button" variant="secondary" className="w-full" onClick={() => signIn("guest")}>
+                  Continue as guest
+                </Button>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-between border-b border-line bg-surface/80 px-4 py-3 backdrop-blur lg:px-6">
+            <div className="flex gap-2 overflow-x-auto lg:hidden">
+              {nav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium",
+                    pathname === item.href ? "bg-panel text-teal" : "text-muted"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            <p className="hidden text-sm text-muted lg:block">Institutional quantitative research terminal</p>
+            <Button type="button" variant="ghost" size="sm" onClick={toggle} aria-label="Toggle theme">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </header>
+          <main className="flex-1">{children}</main>
+        </div>
+      </div>
+    </div>
+  );
+}
