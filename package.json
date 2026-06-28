@@ -1,0 +1,9 @@
+{
+  "name": "quant-committee-ai",
+  "private": true,
+  "scripts": {
+    "backend": "python -m uvicorn backend.app.main:app --reload --port 8000",
+    "frontend": "npm.cmd --prefix frontend run dev"
+  }
+}
+
